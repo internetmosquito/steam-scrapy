@@ -52,10 +52,10 @@ ROBOTSTXT_OBEY = True
 
 # Enable or disable downloader middlewares
 # See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
-#    'steam.middlewares.SteamDownloaderMiddleware': 543,
-#}
-
+DOWNLOADER_MIDDLEWARES = {
+    'scrapy.downloadermiddlewares.redirect.RedirectMiddleware': None,
+    'steam.middlewares.CircumventAgeCheckMiddleware': 600,
+}
 # Enable or disable extensions
 # See https://doc.scrapy.org/en/latest/topics/extensions.html
 #EXTENSIONS = {
@@ -88,3 +88,11 @@ HTTPCACHE_EXPIRATION_SECS = 0
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+
+
+# Log output of scrapy commands to file
+# LOG_STDOUT = True
+# LOG_FILE = 'output.txt'
+
+# This is a custom middleware to drop duplicates
+DUPEFILTER_CLASS = 'steam.middlewares.SteamDupeFilter'

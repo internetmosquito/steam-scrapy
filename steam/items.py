@@ -59,10 +59,16 @@ class ProductItem(scrapy.Item):
             max
 
         )
+        
 
     )
+    """n_reviews = scrapy.Field(
+
+        output_processor=MapCompose(StripText())
+
+    )"""
 
 
 class ProductItemLoader(ItemLoader):
 
-    default_output_processor=TakeFirst()  # (2)
+    default_output_processor = TakeFirst()
