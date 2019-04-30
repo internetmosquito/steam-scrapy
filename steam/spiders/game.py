@@ -1,5 +1,5 @@
 import logging
-
+from w3lib.url import canonicalize_url, url_query_cleaner
 from scrapy.spiders import Spider, CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from scrapy.http import Request, FormRequest
@@ -13,7 +13,7 @@ class ProductSpider(CrawlSpider):
 
     name = 'games'
 
-    start_urls = ["http://store.steampowered.com/search/?sort_by=Released_DESC"]
+    start_urls = ["https://store.steampowered.com/search/?sort_by=Released_DESC"]
 
     allowed_domains = ["steampowered.com"]
 
@@ -39,17 +39,6 @@ class ProductSpider(CrawlSpider):
 
     ]
 
-    """def start_requests(self):
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36'}
-        for i, url in enumerate(self.start_urls):
-            print(url)
-            yield Request(url, cookies={'birthtime': '189302401',
-                                        'lastagecheckage': '1-January-1976',
-                                        'sessionid': 'd597ce63ce8ce2adab72aecc'},
-                          headers=headers,
-                          callback=self.parse_product)"""
-
     def load_product(self, response):
         """
         Get game name using css class name and other characteristics same way
@@ -58,6 +47,10 @@ class ProductSpider(CrawlSpider):
         """
         
         loader = ProductItemLoader(item=ProductItem(), response=response)
+        url = url_query_cleaner(response.url, ['snr'], remove=True)
+        url = canonicalize_url(url)
+        loader.add_value('url', url)
+
         loader.add_css('game_name', '.apphub_AppName ::text')
         loader.add_css('specs', '.game_area_details_specs a ::text')
         loader.add_css('n_reviews', '.responsive_hidden',
@@ -66,8 +59,8 @@ class ProductSpider(CrawlSpider):
         return item
 
     def parse_product(self, response):
-        # Circumvent age selection form.
-        if '/agecheck/app' in response.url:
+        # Removed this because it simply ain't working as expected
+        """if '/agecheck/app' in response.url:
 
             logger.debug("Form-type age check triggered for {0}.".format(response.url))
 
@@ -117,9 +110,9 @@ class ProductSpider(CrawlSpider):
 
             )
 
-        else:
-            # I moved all parsing code into its own function for clarity.
-            yield self.load_product(response)
+        else:"""
+        # I moved all parsing code into its own function for clarity.
+        yield self.load_product(response)
 
 
 

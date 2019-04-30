@@ -4,6 +4,7 @@
 #
 # See documentation in:
 # https://doc.scrapy.org/en/latest/topics/spider-middleware.html
+import re
 
 from scrapy import signals
 
@@ -14,7 +15,7 @@ from scrapy.http.request import Request
 from scrapy.downloadermiddlewares.cookies import CookiesMiddleware
 from scrapy.downloadermiddlewares.redirect import RedirectMiddleware
 
-import re
+from steam.spiders.game import logger
 
 
 class SteamSpiderMiddleware(object):
@@ -87,13 +88,10 @@ class SteamDownloaderMiddleware(object):
         # - or return a Request object
         # - or raise IgnoreRequest: process_exception() methods of
         #   installed downloader middleware will be called
-        print(request)
         return None
 
     def process_response(self, request, response, spider):
         # Called with the response returned from the downloader.
-        if 'agecheck' in response.url:
-            print(response)
         # Must either;
         # - return a Response object
         # - return a Request object
@@ -117,32 +115,37 @@ class SteamDownloaderMiddleware(object):
 class CircumventAgeCheckMiddleware(RedirectMiddleware):
 
     def _redirect(self, redirected, request, spider, reason):
-
-        # Only overrule the default redirect behavior
-
-        # in the case of mature content checkpoints.
-
-        #if not re.findall('app/(.*)/agecheck', redirected.url):
-
+        # if we can't find /agecheck/app in the URL it means URL is not a redirect for age check
         if not re.search('/agecheck/app/', redirected.url):
             return super()._redirect(redirected, request, spider, reason)
 
-
-
-        #logger.debug(f"Button-type age check triggered for {request.url}.")
-
-
+        logger.debug("Form-type age check triggered for {0}".format(request.url))
+        # Set cookies so when redirected it will load game correctly
 
         return Request(url=request.url,
 
-                       cookies={'mature_content': '1',
+                       cookies={'wants_mature_content': '1',
+                                'mature_content': '1',
                                 'birthtime': '189302401',
                                 'lastagecheckage': '1-January-1976',
                                 },
-
+                       headers={'Referer': redirected.url},
                        meta={'dont_cache': True},
-
                        callback=spider.parse_product)
+
+
+class CircumventAgeCheckCookieMiddleware(CookiesMiddleware):
+    """
+    Idea of this middleware was to set permanent cookies for all requests, but for those 302 ones it ain't working
+    TODO: Check why this is not working as expected
+    """
+    def process_request(self, request, spider):
+        cookies = {'wants_mature_content': '1',
+                   'birthtime': '189302401',
+                   'lastagecheckage': '1-January-1976',
+                   }
+
+        request.cookies = cookies
 
 
 class SteamDupeFilter(RFPDupeFilter):
@@ -159,9 +162,13 @@ class SteamDupeFilter(RFPDupeFilter):
     """
 
     def request_fingerprint(self, request):
+        # Check if this request comes from a redirect from agecheck gate, then it should not be marked as duplicate
+        if b'agecheck' not in request.headers['Referer']:
 
-        url = url_query_cleaner(request.url, ['snr'], remove=True)
+            url = url_query_cleaner(request.url, ['snr'], remove=True)
 
-        request = request.replace(url=url)
+            request = request.replace(url=url)
 
-        return super().request_fingerprint(request)
+            return super().request_fingerprint(request)
+        else:
+            logger.debug('Skipping DupeFilter for URL redirected for agecheck {0}'.format(request.url))
