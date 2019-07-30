@@ -1,4 +1,5 @@
 import logging
+import re
 from w3lib.url import canonicalize_url, url_query_cleaner
 from scrapy.spiders import Spider, CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
@@ -49,8 +50,38 @@ class ProductSpider(CrawlSpider):
         loader = ProductItemLoader(item=ProductItem(), response=response)
         url = url_query_cleaner(response.url, ['snr'], remove=True)
         url = canonicalize_url(url)
-        loader.add_value('url', url)
+        # loader.add_value('url', url)
+        # Get game ID from URL, if we found it we build URL to extract reviews later
+        found_id = re.findall(r'/app/(\d+)/', response.url)
+        if found_id:
+            id = found_id[0]
+            reviews_url = 'http://steamcommunity.com/app/{id}/reviews/?browsefilter=mostrecent&p=1'.format(id=id)
+            loader.add_value('reviews_url', reviews_url)
+            loader.add_value('id', id)
 
+        # Let's get details, we're only intersted in first block that contains Title, Genre, Developer, Publisher and
+        # Release date
+        details = response.css('.details_block').extract_first()
+        try:
+            details = details.split('<br>')
+
+            for line in details:
+                # Let's remove tags and white space chars \t\r\n
+                line = re.sub('<[^<]+?>', '', line)
+                line = re.sub('[\r\t\n]', '', line).strip()
+                # Get the specifc property and replace it with content in line after removing the property from line
+                for prop, name in [
+                    ('Title:', 'title'),
+                    ('Genre:', 'genres'),
+                    ('Developer:', 'developer'),
+                    ('Publisher:', 'publisher'),
+                    ('Release Date:', 'release_date')
+                ]:
+                    if prop in line:
+                        item = line.replace(prop, '').strip()
+                        loader.add_value(name, item)
+        except Exception as ex:
+            print(ex.__repr__())
         loader.add_css('game_name', '.apphub_AppName ::text')
         loader.add_css('specs', '.game_area_details_specs a ::text')
         loader.add_css('n_reviews', '.responsive_hidden',
